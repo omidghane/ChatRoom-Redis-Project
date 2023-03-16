@@ -59,6 +59,13 @@ class Group {
         this.messages = messages;
     }
 
+    public void addMessage(String memberName){
+        if (messages == null) {
+            messages = new ArrayList<>();
+        }
+        messages.add(memberName);
+    }
+
     @Override
     public String toString() {
         return "Group{" +

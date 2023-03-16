@@ -1,6 +1,8 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
 import redis.clients.jedis.Jedis;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.Set;
@@ -63,8 +65,13 @@ public class Main {
     }
 
     private static void create_group(Jedis db, String name) {
-        System.out.print("Group name: ");
-        String group_name = line_input();
+        boolean checked = false;
+        String group_name;
+        do {
+            System.out.print("Group name: ");
+            group_name = line_input();
+            checked = check_same_groupName(db, group_name);
+        }while (checked);
         System.out.print("choose a description for group: ");
         String description = line_input();
 
@@ -81,6 +88,7 @@ public class Main {
         String channel = groupkey;
         String message = line_input();
         db.publish(channel,name + ": " + message);
+        save_message(db, groupkey, message);
     }
 
     private static void subscribe(Jedis db, String groupkey, String name) {
@@ -89,6 +97,7 @@ public class Main {
         new Thread(() -> {
             System.out.println("Subscribing to channel " + groupkey + " ...");
             add_member(db, groupkey, name);
+            show_messages(db, groupkey);
             db.subscribe(jedisPubSub, groupkey);
             System.out.println("Subscription ended.");
             System.out.println();
@@ -114,6 +123,24 @@ public class Main {
         }
     }
 
+    private static void show_messages(Jedis db, String groupkey) {
+        Group g = JSON_to_object(db, groupkey);
+        assert g != null;
+        int index=0;
+        for(String message: g.getMessages())
+        {
+            System.out.println(++index + ") " + message);
+        }
+    }
+
+    // save message in database
+    private static void save_message(Jedis db, String groupkey, String message) {
+        Group g = JSON_to_object(db, groupkey);
+        assert g != null;
+        g.addMessage(message);
+        store_JSON_Redis(groupkey, g, db);
+    }
+
     private static void add_member(Jedis db, String groupkey, String name) {
         Group g = JSON_to_object(db, groupkey);
         g.addMember(name);
@@ -126,6 +153,21 @@ public class Main {
         g.removeMember(name);
         store_JSON_Redis(groupkey, g, db);
     }
+
+    // check if the group_name has been used then it return True
+    private static boolean check_same_groupName(Jedis db, String group_name) {
+        Set<String> keys = db.keys("*");
+
+        for(String key:keys)
+        {
+            if(group_name.equals(key))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     private static String line_input()
     {
@@ -167,18 +209,16 @@ public class Main {
         // Create object for group with features
         Group group = new Group();
         group.setCreator(creator);
-        group.setCreatedTime("2020");
+        group.setCreatedTime(giveTime());
         group.setDescription(description);
-//        List<String> members = new ArrayList<>();
-//        members.add("Alice");
-//        members.add("Bob");
-//        members.add("Charlie");
-//        group.setMembers(members);
-//        List<String> messages = new ArrayList<>();
-//        messages.add("hi mamad");
-//        messages.add("omid hi");
-//        group.setMessages(messages);
         return group;
+    }
+
+    private static String giveTime() {
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String formattedDateTime = now.format(formatter);
+        return formattedDateTime;
     }
 
     private static Set<String> list_groups(Jedis db) {
