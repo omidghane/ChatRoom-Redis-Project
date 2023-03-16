@@ -42,7 +42,7 @@ public class Main {
                 if (choice1 == 1) {
                     publish_message(db, name, groupkey);
                 } else if (choice1 == 2) {
-                    subscribe(db, groupkey);
+                    subscribe(db, groupkey, name);
                 }
                 else if(choice1 == 3)
                 {
@@ -83,12 +83,12 @@ public class Main {
         db.publish(channel,name + ": " + message);
     }
 
-    private static void subscribe(Jedis db, String groupkey) {
-
+    private static void subscribe(Jedis db, String groupkey, String name) {
         MyJedis jedisPubSub = new MyJedis();
 
         new Thread(() -> {
             System.out.println("Subscribing to channel " + groupkey + " ...");
+            add_member(db, groupkey, name);
             db.subscribe(jedisPubSub, groupkey);
             System.out.println("Subscription ended.");
             System.out.println();
@@ -102,6 +102,7 @@ public class Main {
             if ("Q".equalsIgnoreCase(input)) {
                 keepSubscribing = false;
                 jedisPubSub.unsubscribe(groupkey);
+                remove_member(db, groupkey, name);
 
                 try {
                     // Sleep for 5 seconds
@@ -111,6 +112,19 @@ public class Main {
                 }
             }
         }
+    }
+
+    private static void add_member(Jedis db, String groupkey, String name) {
+        Group g = JSON_to_object(db, groupkey);
+        g.addMember(name);
+        store_JSON_Redis(groupkey, g, db);
+    }
+
+    private static void remove_member(Jedis db, String groupkey, String name) {
+        Group g = JSON_to_object(db, groupkey);
+        assert g != null;
+        g.removeMember(name);
+        store_JSON_Redis(groupkey, g, db);
     }
 
     private static String line_input()
@@ -178,7 +192,16 @@ public class Main {
         for (String key : keys) {
             Group g = JSON_to_object(db, key);
             System.out.print(++index + ": " + key);
-            System.out.println(" (creator: " + g.getCreator() + ", description: " + g.getDescription()+ ")");
+            System.out.print(" (creator: " + g.getCreator() + ", description: " + g.getDescription()+ ", members: ");
+            try {
+                for (String member : g.getMembers()) {
+                    System.out.print(member + ", ");
+                }
+            }catch (Exception e)
+            {
+
+            }
+            System.out.println(")");
         }
         return keys;
     }

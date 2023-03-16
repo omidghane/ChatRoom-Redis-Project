@@ -1,3 +1,4 @@
+import java.util.ArrayList;
 import java.util.List;
 
 class Group {
@@ -33,6 +34,17 @@ class Group {
 
     public List<String> getMembers() {
         return members;
+    }
+
+    public void addMember(String memberName){
+        if (members == null) {
+            members = new ArrayList<>();
+        }
+        members.add(memberName);
+    }
+
+    public void removeMember(String memberName){
+        members.remove(memberName);
     }
 
     public void setMembers(List<String> members) {
