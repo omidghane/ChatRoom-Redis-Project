@@ -7,10 +7,7 @@ public class MyJedis extends JedisPubSub {
 
     @Override
     public void onMessage(String channel, String message) {
-        System.out.println("[" +Clock.systemUTC().instant() + "] " + message + " from channel: " + channel);
-
-        unsubscribe(channel);
-
+        System.out.println("[" +Clock.systemUTC().instant() + "] " + message );
     }
 
     @Override
