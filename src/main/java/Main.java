@@ -3,19 +3,27 @@ import redis.clients.jedis.Jedis;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 
 public class Main {
+    static RedisDatabase db_message;
 
     public static void main(String[] args) {
         // write your code here
         try{
             Scanner input = new Scanner(System.in);
             Jedis db = new Jedis("localhost");
+            db_message = new RedisDatabase(db);
+
+//            db.select(1);
+//            db.del("shahla-hasan-1679073222");
+//            db.del("shahla-has-1679073420");
+
+            db.select(0);
             System.out.println("connection ok");
             System.out.println();
+//            remove_message(db, "shakh tala", "hi hasan");
+//            remove_member(db, "gr1", "ayda");
 
             System.out.println("tell your name: ");
             String name = input.next();
@@ -24,7 +32,7 @@ public class Main {
             while(true) {
                 Set<String> keys = list_groups(db);
                 int index_size = keys.size();
-                System.out.println((index_size+1) +": create new group\n"+ (index_size+2) + ": leave");
+                System.out.println((index_size+1) +": create new group\n"+ (index_size+2) + ": search_in_messages\n"+ (index_size+3) +": leave");
                 String groupkey = choose_groups(db, keys);
 
                 int choice1;
@@ -32,9 +40,13 @@ public class Main {
                 {
                     choice1 = 3;
                 }
-                else if(groupkey.equals("quit"))
+                else if(groupkey.equals("search"))
                 {
                     choice1 = 4;
+                }
+                else if(groupkey.equals("quit"))
+                {
+                    choice1 = 5;
                 }
                 else {
                     System.out.println("1: write message group \n2: read message group");
@@ -52,6 +64,12 @@ public class Main {
                 }
                 else if(choice1 == 4)
                 {
+                    db.select(1);
+                    searching_message();
+                    db.select(0);
+                }
+                else if(choice1 == 5)
+                {
                     break;
                 }
                 System.out.println();
@@ -62,6 +80,34 @@ public class Main {
         {
             e.printStackTrace();
         }
+    }
+
+    private static void searching_message() {
+        db_message.showKeys();
+
+        List<String> messages;
+        Scanner input = new Scanner(System.in);
+
+        System.out.print("enter group name: ");
+        String groupName = line_input();
+
+        System.out.print("\nenter sender name (press Q to search): ");
+        String senderName = line_input();
+        if("Q".equalsIgnoreCase(senderName))
+        {
+            System.out.println(db_message.getMessages(groupName));
+            return;
+        }
+
+        System.out.print("\nenter time (press Q to search): ");
+        String time = line_input();
+        if("Q".equalsIgnoreCase(senderName))
+        {
+            System.out.println(db_message.getMessages(groupName, senderName));
+            return;
+        }
+
+        System.out.println(db_message.getMessages(groupName, senderName, time));
     }
 
     private static void create_group(Jedis db, String name) {
@@ -87,6 +133,11 @@ public class Main {
         Scanner input = new Scanner(System.in);
         String channel = groupkey;
         String message = line_input();
+
+        db.select(1);
+        db_message.addMessage(groupkey, name, message);
+        db.select(0);
+
         db.publish(channel,name + ": " + message);
         save_message(db, groupkey, message);
     }
@@ -126,11 +177,18 @@ public class Main {
     private static void show_messages(Jedis db, String groupkey) {
         Group g = JSON_to_object(db, groupkey);
         assert g != null;
-        int index=0;
-        for(String message: g.getMessages())
-        {
-            System.out.println(++index + ") " + message);
-        }
+
+        Optional<List<String>> messages = Optional.ofNullable(g.getMessages());
+        messages.ifPresentOrElse(list -> {
+            int index=0;
+            for (String message : list) {
+                System.out.println(++index + ") " + message);
+            }
+        }, () -> System.out.println("No messages found."));
+//        int index=0;
+//        for (String message : g.getMessages()) {
+//            System.out.println(++index + ") " + message);
+//        }
     }
 
     // save message in database
@@ -151,6 +209,13 @@ public class Main {
         Group g = JSON_to_object(db, groupkey);
         assert g != null;
         g.removeMember(name);
+        store_JSON_Redis(groupkey, g, db);
+    }
+
+    private static void remove_message(Jedis db, String groupkey, String message) {
+        Group g = JSON_to_object(db, groupkey);
+        assert g != null;
+        g.removeMessage(message);
         store_JSON_Redis(groupkey, g, db);
     }
 
@@ -196,8 +261,11 @@ public class Main {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             // Retrieve JSON string value from Redis and convert back to object
+//            System.out.println(key + " ((key");
             String retrievedJsonValue = db.get(key);
+//            System.out.println(retrievedJsonValue + " ((Debug1");
             Group retrievedGroup = objectMapper.readValue(retrievedJsonValue, Group.class);
+//            System.out.println(retrievedGroup + " ((Debug2");
             return retrievedGroup;
         }catch (Exception e){
             e.printStackTrace();
@@ -228,7 +296,6 @@ public class Main {
 
         // Print out all keys
         int index = 0;
-        ArrayList<Integer> keyNumbers = new ArrayList<>();
         for (String key : keys) {
             Group g = JSON_to_object(db, key);
             System.out.print(++index + ": " + key);
@@ -265,6 +332,10 @@ public class Main {
             return "create";
         }
         if(choice2 == index+2)
+        {
+            return "search";
+        }
+        if(choice2 == index+3)
         {
             return "quit";
         }

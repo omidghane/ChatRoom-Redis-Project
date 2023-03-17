@@ -59,6 +59,10 @@ class Group {
         this.messages = messages;
     }
 
+    public void removeMessage(String message){
+        messages.remove(message);
+    }
+
     public void addMessage(String memberName){
         if (messages == null) {
             messages = new ArrayList<>();
